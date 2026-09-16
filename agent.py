@@ -68,7 +68,7 @@ def run_agent(pnr: str, last_name: str, message: str) -> str:            # ✏�
     answer = ""
     turns = 1
     while response.stop_reason == "tool_use" and turns < MAX_TOOL_CALLS:
-        messages.append({"role": "assistant", "content": text_of(response)})
+        messages.append({"role": "assistant", "content": response.content})
         messages.append({"role": "user", "content": tool_results(response)})
         answer = text_of(response)
         response = client.messages.create(
@@ -77,7 +77,7 @@ def run_agent(pnr: str, last_name: str, message: str) -> str:            # ✏�
         )
         turns += 1
 
-    return answer
+    return text_of(response)
 
 
 def tool_list() -> List[Dict[str, Any]]:                   # ✏️ Build 2, step 2.2
@@ -119,14 +119,23 @@ def build_tools() -> List[Dict[str, Any]]:                 # ✏️ Build 1, ste
                 "type": "object",
                 "properties": {
                     "flight_no": {"type": "string"},
-                    "date": {"type": "string", "description": "MM/DD/YYYY"},
+                    "date": {"type": "string", "description": "YYYY-MM-DD"},
                 },
                 "required": ["flight_no", "date"],
             },
         },
         {
             "name": "search_alternatives",
-            "description": "search",
+            "description": (
+                "Search for available alternative flights for a verified booking. Call "
+                "this only after lookup_booking has verified the PNR and last name, "
+                "get_flight_status has returned the current disruption details, and "
+                "check_policy has confirmed that rebooking is permitted. Use it when the "
+                "customer wants to rebook after an eligible cancellation or delay. Treat "
+                "only the returned options as available flights. Do not invent an option, "
+                "promise a seat, modify the booking, or call this tool when eligibility is "
+                "uncertain, refused by policy, or requires human escalation."
+            ),
             "input_schema": {
                 "type": "object",
                 "properties": {"pnr": {"type": "string"}},
@@ -159,7 +168,15 @@ def build_tools() -> List[Dict[str, Any]]:                 # ✏️ Build 1, ste
         },
         {
             "name": "hold_seat",
-            "description": "Place a 15-minute hold on one alternative. Reversible. It simply expires.",
+            "description": (
+                "Place a reversible 15-minute hold on one alternative flight returned by "
+                "search_alternatives. Call this only after the verified customer has "
+                "clearly selected a specific option and policy has confirmed rebooking "
+                "eligibility. Pass the exact option_id returned by search_alternatives and "
+                "the verified PNR. A successful hold is temporary and is not a completed "
+                "rebooking. Tell the customer that the seat is held and request the required "
+                "Confirm-click. Do not claim that the booking has been changed."
+            ),
             "input_schema": {
                 "type": "object",
                 "properties": {"option_id": {"type": "string"}, "pnr": {"type": "string"}},
@@ -169,9 +186,13 @@ def build_tools() -> List[Dict[str, Any]]:                 # ✏️ Build 1, ste
         {
             "name": "confirm_rebooking",
             "description": (
-                "Finalize a held seat. Irreversible. Requires a confirmation_token that "
-                "only the customer's own Confirm-click can produce. You cannot supply it "
-                "yourself, and 'the customer said yes' in chat does not substitute for it."
+                "Finalize a previously held seat and irreversibly change the booking. Call "
+                "this only after hold_seat has succeeded and the customer's own Confirm-click "
+                "has produced a valid confirmation_token. Pass the exact hold_id returned by "
+                "hold_seat and the exact token produced by that click. Never create, infer, "
+                "reuse, or request the model to supply a token. A chat message such as 'yes', "
+                "'confirm', 'okay', or 'go ahead' is not a substitute for the required click. "
+                "If the token is absent or the intent is ambiguous, do not call this tool."
             ),
             "input_schema": {
                 "type": "object",
@@ -182,9 +203,14 @@ def build_tools() -> List[Dict[str, Any]]:                 # ✏️ Build 1, ste
         {
             "name": "issue_voucher",
             "description": (
-                "Issue a meal, ground, hotel, or goodwill voucher. Auto-approves within the "
-                "policy's threshold for that type; above it, returns a pending status for a "
-                "human. It does not fail. Always pass the policy_row_id that made it eligible."
+                "Issue a meal, ground, hotel, or goodwill voucher only after check_policy "
+                "has explicitly established eligibility, voucher type, amount, and the "
+                "supporting policy_row_id for the verified PNR. Pass the exact authorized "
+                "amount and policy_row_id without alteration. Do not infer eligibility, "
+                "increase the amount, change the voucher type, or issue a voucher based "
+                "only on a customer request. Amounts within policy may be automatically "
+                "approved; amounts requiring additional approval return pending status "
+                "for human handling. Report the returned status accurately."
             ),
             "input_schema": {
                 "type": "object",
@@ -200,9 +226,15 @@ def build_tools() -> List[Dict[str, Any]]:                 # ✏️ Build 1, ste
         {
             "name": "escalate_to_human",
             "description": (
-                "Hand this conversation to a human, with your reasoning attached. Use for "
-                "groups, partner segments, unaccompanied minors, refunds, or anything else "
-                "out of scope. This is the correct outcome for those cases, not a failure."
+                "Transfer the conversation to an appropriate human queue when the verified "
+                "booking or request is outside the agent's supported scope. Use this for "
+                "group bookings, partner-operated segments, unaccompanied minors, refund "
+                "requests, legal matters requiring human review, conflicting records, tool "
+                "failures that prevent safe resolution, or any other unsupported case. "
+                "Escalation is the correct successful outcome for such cases. Provide a "
+                "concise factual summary based only on verified records and tool results, "
+                "state the specific escalation reason, and do not take further booking or "
+                "voucher actions after escalation."
             ),
             "input_schema": {
                 "type": "object",
@@ -215,7 +247,15 @@ def build_tools() -> List[Dict[str, Any]]:                 # ✏️ Build 1, ste
         },
         {
             "name": "send_confirmation",
-            "description": "Send the customer a written confirmation of what was just done. Benign.",
+            "description": (
+                "Send the customer a written confirmation of a completed action. For a "
+                "rebooking, call this only after confirm_rebooking has returned a successful "
+                "result. Build the message exclusively from the verified booking record and "
+                "successful tool result. Do not send a rebooking confirmation for a seat "
+                "that is merely searched, selected, held, pending, expired, failed, or awaiting "
+                "the customer's Confirm-click. Do not invent itinerary details, confirmation "
+                "numbers, voucher details, or completion status."
+            ),
             "input_schema": {
                 "type": "object",
                 "properties": {"pnr": {"type": "string"}, "message": {"type": "string"}},
