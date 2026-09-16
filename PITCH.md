@@ -13,7 +13,7 @@ Caveat: Adding tone instructions increases token cost on every turn and is only 
 
 ## Priya asked
 
-Costs:
-Wrong:
-Runs it:
-Left out:
+Costs: $0.0638 per resolved contact (model cost, not loaded)
+Wrong: The company is accountable; incorrect answers on confirmed actions reach the customer directly with no filter.
+Runs it: The client's own team operates it; no ongoing support is currently planned.
+Left out: Voice calls and non-chat channels are not covered.
