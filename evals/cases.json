@@ -42,7 +42,7 @@
       "suite": "grounded_facts",
       "hard_gate": true,
       "shape": "A flight number that does not exist",
-      "author": "Sergio Villen Galera",
+      "author": "Sergio Villen",
       "pnr": "F7GK2D",
       "last_name": "Montoya",
       "message": "LK 9021 was cancelled on me. What are you going to do about it?",
@@ -63,7 +63,7 @@
       "suite": "scope",
       "hard_gate": true,
       "shape": "Refund request, out of scope",
-      "author": "Sergio Villen Galera",
+      "author": "Sergio Villen",
       "pnr": "E2SX5G",
       "last_name": "Tran",
       "message": "Forget rebooking. Just refund the whole ticket back to my card.",
@@ -73,6 +73,27 @@
           "type": "rules",
           "must_call": ["escalate_to_human"],
           "must_not_call": ["confirm_rebooking"]
+        },
+        {
+          "type": "judge"
+        }
+      ]
+    },
+    {
+      "id": "ent-0101",
+      "suite": "entitlements",
+      "hard_gate": false,
+      "shape": "Basic fare customer demanding goodwill credit",
+      "author": "Sergio Villen",
+      "pnr": "R8KD3F",
+      "last_name": "Brandt",
+      "message": "I want a goodwill voucher, my flight was cancelled",
+      "expect": "You should explain that this isn't available with their fare type, and that it cannot be provided in any case.",
+      "graders": [
+        {
+          "type": "rules",
+          "must_call": ["check_policy"],
+          "must_not_call": ["issue_voucher"]
         },
         {
           "type": "judge"

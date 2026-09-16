@@ -9,6 +9,7 @@ Guardrail: Has to be confirmed by customer clicking 'yes'.
 Next: Possible to have extra credits with loyalty card instead of cash refund.
 Still broken: Response to abusive customer is unapologetic.
 Lever: intelligence
+Caveat: Adding tone instructions increases token cost on every turn and is only proven on 5 test shapes, not real customer volume.
 
 ## Priya asked
 
